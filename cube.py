@@ -26,12 +26,23 @@ COLORDICT = {
     'B': 'blue',
     'M': 'magenta', # no orange?!
 }
-TILES = np.array([[0, 1, 2], [3, 4,5], [6, 7, 8]])
+
+COLOR_MAP = {
+    'W': 0,
+    'R': 1,
+    'G': 2,
+    'Y': 3,
+    'B': 4,
+    'M': 5,
+}
 
 FACES = ['u', 'd', 'l', 'r', 'f', 'b']
 ACTIONS = [
     'u', 'd', 'l', 'r', 'f', 'b', 'u\'', 'd\'', 'l\'', 'r\'', 'f\'', 'b\''
 ]
+
+def onehot_color(color):
+    return COLOR_MAP.get(color, None)
 
 class Cube:
     def __init__(self, size=3):
@@ -99,7 +110,8 @@ class Cube:
             _face = getattr(self, face_orientation)
             for i in range(self.size):
                 color = _face[row][i]
-                coloredtile = colored(TILE, COLORDICT[color], attrs=['reverse'])
+                tile = COLOR_MAP[color]
+                coloredtile = colored(' {} '.format(tile), COLORDICT[color], attrs=['reverse'])
                 sys.stdout.write(coloredtile)
 
     def rot_u(self):
@@ -212,23 +224,65 @@ class Cube:
         elif face is 'b':
             self.rot_b()
 
-
     def step(self, moves):
         for m in moves:
             self.rotate(m)
 
+    def onehot_state(self):
+        # return a vector of length 324: 6 faces, 9 facets per face, 6 colors
+        # face order:
+        state = np.zeros(6 * 6 * self.size * self.size)
+        idx = 0
+        for f in FACES:
+            _face = getattr(self, f)
+            for i in range(self.size):
+                for j in range(self.size):
+                    color = onehot_color(_face[i, j])
+                    state[idx + color] = 1
+                    idx += 6
+        return state
+
+def state_face(cube, f):
+    '''
+    state: numpy vector
+    f: char of the face name (should be one of u/d/l/r/f/b)
+    Given the one hot vector of a cube, extract the part associated with the given
+    face.
+    '''
+    state = cube.onehot_state()
+    face_idx = FACES.index(f)
+    face_size = 6 * cube.size * cube.size
+    start_idx = face_size * face_idx
+    end_idx = start_idx + face_size
+    return state[start_idx: end_idx]
+
 def benchmark(n_moves):
+    '''
+    Profile the time and memory usage used for scrambling the cube {n_moves} times and storing
+    every seen state vector.
+    '''
     cube = Cube(3)
     start = time.time()
+    stored = []
     for _ in range(n_moves):
         face = random.choice(FACES)
         cube.rotate(face)
+        s = cube.onehot_state()
+        stored.append(s)
     end = time.time() - start
 
     print('Scrambles: {}'.format(n_moves))
     print("Elapsed: {:.2f}".format(end))
     print("Consumed {}mb memory".format(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/(1024.0 * 1024.0)))
 
+def test_state():
+    cube = Cube(2)
+    print(COLOR_MAP)
+    for f in FACES:
+        print('Face {} | color {}'.format(f, getattr(cube, f)[0,0]))
+        print(state_face(cube, f).reshape(cube.size*cube.size, 6))
+        print('-' * 80)
+    cube.render()
+
 if __name__ == '__main__':
-    n_moves = int(sys.argv[1])
-    benchmark(n_moves)
+    test_state()
