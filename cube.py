@@ -37,6 +37,7 @@ COLOR_MAP = {
 }
 
 FACES = ['u', 'd', 'l', 'r', 'f', 'b']
+ACTION_TO_FACE = {idx: f for idx, f in enumerate(FACES)}
 ACTIONS = [
     'u', 'd', 'l', 'r', 'f', 'b', 'u\'', 'd\'', 'l\'', 'r\'', 'f\'', 'b\''
 ]
@@ -53,6 +54,13 @@ class Cube:
         self.r = np.array([['M' for _ in range(size)] for _ in range(size)])
         self.f = np.array([['W' for _ in range(size)] for _ in range(size)])
         self.b = np.array([['Y' for _ in range(size)] for _ in range(size)])
+        self.move_history = []
+
+    def get_reward(self, solved):
+        if solved:
+            return 1
+        else:
+            return 0
 
     def reset(self):
         self.u = np.array([['G' for _ in range(self.size)] for _ in range(self.size)])
@@ -61,6 +69,8 @@ class Cube:
         self.r = np.array([['M' for _ in range(self.size)] for _ in range(self.size)])
         self.f = np.array([['W' for _ in range(self.size)] for _ in range(self.size)])
         self.b = np.array([['Y' for _ in range(self.size)] for _ in range(self.size)])
+        self.move_history = []
+        return self.onehot_state()
 
     def render(self, _ascii=False):
         if _ascii:
@@ -224,9 +234,27 @@ class Cube:
         elif face is 'b':
             self.rot_b()
 
-    def step(self, moves):
+    def step(self, action):
+        # convert action to face
+        if not (0 <= action < 6):
+            raise ValueError('Action must be in {0, 1, ..., 5}')
+        face = ACTION_TO_FACE[action]
+        self.move_history.append(face)
+        self.rotate(face)
+
+        state = self.onehot_state
+        done = self.solved()
+        reward = self.get_reward(done)
+        info = {}
+        return state, reward, done, {}
+
+    def multistep(self, moves):
+        '''
+        moves: list of face chars
+        '''
         for m in moves:
-            self.rotate(m)
+            action = FACES.index(m)
+            self.step(action)
 
     def onehot_state(self):
         # return a vector of length 324: 6 faces, 9 facets per face, 6 colors
@@ -241,6 +269,23 @@ class Cube:
                     state[idx + color] = 1
                     idx += 6
         return state
+
+    def solved(self):
+        '''
+        Determines whether or not the cube is solved
+        '''
+        for f in FACES:
+            face = getattr(self, f)
+            for i in range(self.size):
+                for j in range(self.size):
+                    if face[i, j] != face[0, 0]:
+                        return False
+
+        return True
+
+    def random_step(self):
+        action = random.choice(range(6))
+        return self.step(action)
 
 def state_face(cube, f):
     '''
@@ -278,11 +323,21 @@ def benchmark(n_moves):
 def test_state():
     cube = Cube(2)
     print(COLOR_MAP)
-    for f in FACES:
-        print('Face {} | color {}'.format(f, getattr(cube, f)[0,0]))
-        print(state_face(cube, f).reshape(cube.size*cube.size, 6))
-        print('-' * 80)
-    cube.render()
+    for _ in range(10):
+        cube.random_step()
+        for f in FACES:
+            print('Face {} | color {} | Solved {}'.format(f, getattr(cube, f)[0,0], cube.solved()))
+            print(state_face(cube, f).reshape(cube.size*cube.size, 6))
+            print('-' * 80)
+        cube.render()
+    print(COLOR_MAP)
+
+def test_step():
+    cube = Cube(3)
+    for _ in range(4):
+        cube.random_step()
+        cube.render()
+        print(cube.move_history)
 
 if __name__ == '__main__':
-    test_state()
+    test_step()

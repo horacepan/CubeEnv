@@ -31,7 +31,7 @@ def interpreter(cube):
         elif 'pdb' in moves:
             pdb.set_trace()
         else:
-            cube.step(moves)
+            cube.multistep(moves)
 
 def random_run():
     cube = Cube(2)
