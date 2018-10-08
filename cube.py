@@ -2,6 +2,7 @@
 Source implementation: https://github.com/zamlz/dlcampjeju2018-I2A-cube.git
 '''
 import pdb
+import copy
 import resource
 import time
 import random
@@ -36,6 +37,10 @@ COLOR_MAP = {
     'M': 5,
 }
 
+IDX_TO_COLOR = {
+    idx: color for color, idx in COLOR_MAP.items()
+}
+
 FACES = ['u', 'd', 'l', 'r', 'f', 'b']
 ACTION_TO_FACE = {idx: f for idx, f in enumerate(FACES)}
 ACTIONS = [
@@ -55,6 +60,43 @@ class Cube:
         self.f = np.array([['W' for _ in range(size)] for _ in range(size)])
         self.b = np.array([['Y' for _ in range(size)] for _ in range(size)])
         self.move_history = []
+
+    @classmethod
+    def from_str(cls, cubestr):
+        size = int(np.sqrt(len(cubestr) / 6))
+        face_size = size * size
+        cube = cls(size)
+        idx = 0
+
+        for f in FACES:
+            # convert a -> one hot
+            _face = np.array([a.upper() for a in cubestr[idx: idx + face_size]])
+            idx += face_size
+            _face = _face.reshape(size, size)
+            setattr(cube, f, _face)
+        return cube
+
+    @classmethod
+    def from_char_arr(cls, char_arr):
+        pass
+
+    @classmethod
+    def from_onehot(cls, onehot_vec):
+        '''
+        onehot_vec: numpy array of onehot colors for each facet
+        Return: Cube object
+        '''
+        # 324 / 36 = 54
+        size = int(np.sqrt(len(onehot_vec) / 36))
+        Cube = cls(size)
+        color_arr = []
+
+        for idx in range(0, len(onehot_vec), 6):
+            color = IDX_TO_COLOR[np.argmax(onehot_vec[idx: idx + 6])]
+            color_arr.append(color)
+
+        cube_str = ''.join(color_arr)
+        return Cube.from_str(cube_str)
 
     def get_reward(self, solved):
         if solved:
@@ -105,9 +147,6 @@ class Cube:
                 self.render_face('d', row)
                 self.render_face()
                 sys.stdout.write('\n')
-
-    def get_face(self, face_orientation):
-        pass
 
     def render_face(self, face_orientation=None, row=0):
         # renders a single row of the given face
@@ -197,22 +236,6 @@ class Cube:
         self.d[BOT, :]  = new_colors[2]
         self.r[:, RIGHT] = new_colors[3]
 
-    def get_face(self, face_char):
-        if face_char == 'u':
-            return self.u
-        elif face_char == 'd':
-            return self.d
-        elif face_char == 'l':
-            return self.l
-        elif face_char == 'r':
-            return self.r
-        elif face_char == 'f':
-            return self.f
-        elif face_char == 'b':
-            return self.b
-        else:
-            raise ValueError('Not a valid face orientation')
-
     def rotate(self, face):
         # TODO: should probably avoid doing the copy
         # TODO: inverse moves
@@ -242,7 +265,7 @@ class Cube:
         self.move_history.append(face)
         self.rotate(face)
 
-        state = self.onehot_state
+        state = self.onehot_state()
         done = self.solved()
         reward = self.get_reward(done)
         info = {}
@@ -252,7 +275,7 @@ class Cube:
         '''
         moves: list of face chars
         '''
-        for m in moves:
+        for m in FACES:
             action = FACES.index(m)
             self.step(action)
 
@@ -270,6 +293,9 @@ class Cube:
                     idx += 6
         return state
 
+    def str_state(self):
+        return self.__str__()
+
     def solved(self):
         '''
         Determines whether or not the cube is solved
@@ -283,9 +309,33 @@ class Cube:
 
         return True
 
-    def random_step(self):
-        action = random.choice(range(6))
-        return self.step(action)
+    def random_step(self, steps=1):
+        res = None
+        for _ in range(steps):
+            action = random.choice(range(6))
+            res = self.step(action)
+
+        return res
+
+    def next_states(self):
+        nbr_cubes = []
+        for a in FACES:
+            cloned = copy.deepcopy(self)
+            cloned.rotate(a)
+            nbr_cubes.append(cloned)
+        return nbr_cubes
+
+    def __str__(self):
+        cube_str = ''
+        for f in FACES:
+            _face = getattr(self, f)
+            cube_str += ''.join(_face.ravel())
+        return cube_str
+
+    def __repr__(self):
+        self.render()
+        return self.__str__()
+
 
 def state_face(cube, f):
     '''
@@ -313,12 +363,33 @@ def benchmark(n_moves):
         face = random.choice(FACES)
         cube.rotate(face)
         s = cube.onehot_state()
+        #stored.append(tuple(int(x) for x in s))
         stored.append(s)
     end = time.time() - start
 
     print('Scrambles: {}'.format(n_moves))
     print("Elapsed: {:.2f}".format(end))
     print("Consumed {}mb memory".format(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/(1024.0 * 1024.0)))
+
+def test_str_init():
+    colors = list(COLOR_MAP.keys())
+    cube = Cube(3)
+    cube.random_step(30)
+    str_state = cube.str_state()
+    new_cube = Cube.from_str(str_state)
+    print('test_str_init:')
+    print('Reconstructed cube is the same: {}'.format(str_state == new_cube.str_state()))
+
+def test_onehot_init():
+    cube = Cube(3)
+    cube.random_step(20)
+    onehot_vec = cube.onehot_state()
+    str_state = cube.str_state()
+
+    new_cube = Cube.from_onehot(onehot_vec)
+    new_str_state = new_cube.str_state()
+    print('test_onehot_init:')
+    print('Reconstructed cube is the same: {}'.format(str_state == new_str_state))
 
 def test_state():
     cube = Cube(2)
@@ -332,6 +403,17 @@ def test_state():
         cube.render()
     print(COLOR_MAP)
 
+def test_next_states():
+    '''
+    Renders the cubes from next state. This should show the 6 nbrs (only using u/d/l/r/f/b)
+    of the identity cube.
+    '''
+    cube = Cube(3)
+    nxts = cube.next_states()
+    for c in nxts:
+        c.render()
+        print('-' * 80)
+
 def test_step():
     cube = Cube(3)
     for _ in range(4):
@@ -340,4 +422,5 @@ def test_step():
         print(cube.move_history)
 
 if __name__ == '__main__':
-    test_step()
+    test_str_init()
+    test_onehot_init()
