@@ -1,3 +1,4 @@
+import copy
 from cube import Cube, ACTIONS
 import argparse
 import time
@@ -34,6 +35,9 @@ def interpreter(cube):
             cube.multistep(moves)
 
 def random_run():
+    '''
+    Randomly rotate the 2x2 cube and display it.
+    '''
     cube = Cube(2)
     moves = ['u', 'd', 'l', 'r', 'f', 'b']
     for _ in range(100):
@@ -54,5 +58,4 @@ def main():
     interpreter(cube)
 
 if __name__ == '__main__':
-    #random_run()
     main()

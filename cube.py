@@ -236,6 +236,11 @@ class Cube:
         self.d[BOT, :]  = new_colors[2]
         self.r[:, RIGHT] = new_colors[3]
 
+    def inv_rotate(self, face):
+        self.rotate(face)
+        self.rotate(face)
+        self.rotate(face)
+
     def rotate(self, face):
         # TODO: should probably avoid doing the copy
         # TODO: inverse moves
@@ -262,6 +267,7 @@ class Cube:
         if not (0 <= action < 6):
             raise ValueError('Action must be in {0, 1, ..., 5}')
         face = ACTION_TO_FACE[action]
+
         self.move_history.append(face)
         self.rotate(face)
 
@@ -275,7 +281,7 @@ class Cube:
         '''
         moves: list of face chars
         '''
-        for m in FACES:
+        for m in moves:
             action = FACES.index(m)
             self.step(action)
 
@@ -422,5 +428,9 @@ def test_step():
         print(cube.move_history)
 
 if __name__ == '__main__':
-    test_str_init()
-    test_onehot_init()
+    #test_str_init()
+    #test_onehot_init()
+    cube = Cube(2)
+    cube.random_step(10)
+    print(cube.str_state())
+    cube.render()
