@@ -214,7 +214,7 @@ class Cube:
 
     def rot_f(self):
         new_colors = (
-            tuple(self.l[:, RIGHT]),
+            tuple(reversed(self.l[:, RIGHT])),
             tuple(self.u[BOT, :]),
             tuple(reversed(self.r[:, LEFT])),
             tuple(self.d[TOP, :])
@@ -246,7 +246,10 @@ class Cube:
         # TODO: inverse moves
         # TODO: using setattr is a little gross...
         _face = getattr(self, face)
-        rotated_face = np.rot90(_face, axes=(1,0)) # this needs to act on self.u/d/l/r/f/b
+        if face == 'l':
+            rotated_face = np.rot90(_face, -1, axes=(1,0))
+        else:
+            rotated_face = np.rot90(_face, axes=(1,0)) # this needs to act on self.u/d/l/r/f/b
         setattr(self, face, rotated_face)
 
         if face is 'u':
